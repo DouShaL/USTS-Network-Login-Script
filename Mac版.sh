@@ -12,28 +12,36 @@ echo
 
 # 检查网络
 check_network() {
-    echo "[$(date +"%T")] 检查网络连通性..."
-    ping -c 1 10.160.63.9 >/dev/null 2>&1
-    if [[ $? -ne 0 ]]; then
+    echo "[$(date +"%T")] 检查服务器连通性..."
+    until ping -c 1 -W 2 10.160.63.9 >/dev/null 2>&1; do
         echo "[$(date +"%T")] 服务器不可达，3秒后重试..."
         sleep 3
-        check_network
-    else
-        echo "[$(date +"%T")] 网络正常."
-        echo
-    fi
+    done
+    echo "[$(date +"%T")] 网络正常."
 }
 
 # 获取本机IP
 get_ip() {
-    WLAN_USER_IP=$(ifconfig | grep "inet " | awk '{print $2}' | grep "^10\.160\." | head -n 1)
+    echo "[$(date +"%T")] 正在获取本机校园网 IP..."
 
+    # 尝试通过 ip addr 获取 (OpenWrt/现代Linux标准)
+    WLAN_USER_IP=$(ip addr 2>/dev/null | grep -oE 'inet 10\.160\.[0-9]+\.[0-9]+' | awk '{print $2}' | head -n 1)
+
+    # 如果 ip addr 获取失败，尝试 ifconfig
     if [[ -z "$WLAN_USER_IP" ]]; then
-        echo "[$(date +"%T")] 未找到10.160网段IP，使用默认值"
-        WLAN_USER_IP="10.160.23.239"
+        WLAN_USER_IP=$(ifconfig 2>/dev/null | grep "inet " | awk '{print $2}' | sed 's/addr://' | grep "^10\.160\." | head -n 1)
     fi
 
-    echo "[$(date +"%T")] 当前IP: $WLAN_USER_IP"
+    # 检查结果
+    if [[ -z "$WLAN_USER_IP" ]]; then
+        echo "======================================================"
+        echo "[$(date +"%T")] 错误：未找到 10.160 网段的有效 IP！"
+        echo "[提示] 请确认已连接苏科大校园网 Wi-Fi 或插好网线后重试。"
+        echo "======================================================"
+        exit 1
+    fi
+
+    echo "[$(date +"%T")] 当前识别到有效 IP: $WLAN_USER_IP"
     echo
 }
 
